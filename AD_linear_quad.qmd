@@ -1,0 +1,247 @@
+---
+title: "Utilização de Análise Discriminante"
+author: "Paulo Manoel da Silva Junior"
+lang: pt
+format: 
+  html:
+    theme: materia
+    toc: true
+    toc-title: Sumário
+    toc-depth: 4
+    toc-location: right
+    code-copy: true
+    number-sections: false
+    code-tools: false
+    code-block-bg: true
+    smooth-scroll: true
+    code-fold: true
+    code-block-border-left: "#31BAE9"
+    number-depth: 3
+    html-math-method: mathjax
+self-contained: true
+page-layout: full
+editor: source
+---
+
+# Utilização de Análise Discriminante 
+
+:::{.callout-tip}
+
+## Objetivo 
+
+O objetivo do presente documento é utilizar a análise de discriminante linear e quadrática para classificação em um banco de dados de cédulas, com duas classes, sendo **verdadeira** e **falsa** como as classes, ou variável *target* como é conhecido no universo de aprendizagem de máquina
+:::
+
+Vamos agora descrever o banco de dados, com as variáveis que se encontra. 
+
+:::{.callout-note}
+
+## Banco de Dados
+
+O banco de dados `banknote.dat` contém informações de 6 variáveis medidas em 100 notas verdadeiras e 100 notas falsas. As variáveis que temos no banco de dados, são: 
+
+- **Y:** classe (verdadeira ou falsa) 
+
+- $X_1:$ Tamanho (comprimento da nota)
+- $X_2:$ Esquerda (altura da nota no lado esquerdo)
+- $X_3:$ Direita (altura da nota no lado direito)
+- $X_4:$ Inferior (tamanho da borda inferior)
+- $X_5:$ Superior (tamanho da borda superior)
+- $X_6:$ Diagonal (comprimento da diagonal da nota)
+
+**Observação:** Onde tem o nome escrito nota, leia-se cédula
+
+:::
+
+- Vamos preparar o ambiente, realizando a limpeza do que há na memória. 
+
+```{r}
+rm(list=ls(all=T))
+gc()
+```
+
+Logo em seguida, vamos carregar as bibliotecas necessárias. 
+
+**Carregando as bibliotecas necessárias**
+
+```{r, message=FALSE, include=FALSE}
+library(dplyr)
+library(plotly)
+library(skimr)
+library(DT)
+library(corrplot)
+library(MASS)
+library(knitr)
+```
+
+**Definindo o diretório e logo em seguida carregando o banco de dados**
+
+```{r, include=FALSE}
+setwd("C:\\Users\\paulo\\OneDrive\\Área de Trabalho\\ESTATÍSTICA\\UFPB\\8º PERÍODO\\ANÁLISE MULTIVARIADA II\\AULAS\\EXERCÍCIO")
+
+data <- read.table("banknote.dat", sep = "\t", header = T, col.names = c("Classe", "Comprimento", "Altura_LE", "Altura_LD", "Inferior", "Superior", "Diagonal"))
+```
+
+
+```{r}
+glimpse(data)
+data$Classe <- factor(data$Classe, levels = c("V","F"), labels = c("Verdadeiro", "Falso"))
+
+```
+
+**Visualizando o banco de dados**
+
+```{r}
+datatable(data, filter = "top", options = list(pageLength = 5, autoWidth = TRUE), caption = "Banco de Dados")
+```
+
+
+## Análise Descritiva do Banco de Dados 
+
+- De maneira mais direta, vamos realizar a análise descritiva com a função `skim` do pacote `skimr`, onde de maneira mais direta vemos algumas informações das variáveis. 
+
+```{r}
+skim(data)
+```
+- Agora, vamos verificar de maneira visual através de gráficos de caixa, a relação das variáveis com a classe das notas, as variáveis **target**, onde fala da classe das notas, se são verdadeira ou falsas. 
+
+### Visualização Gráfica
+
+:::{.panel-tabset}
+
+## Comprimento da nota 
+
+```{r, warning=FALSE}
+plot_ly(data, x = data$Comprimento, color = data$Classe, type = "box") %>% 
+  layout(title = "Boxplot do Comprimento com relação a classe das notas")
+```
+
+**Observação:** Podemos observar que há uma diferença na mediana das classes com relação ao comprimento das cédulas. 
+
+## Altura - Lado Esquerdo
+
+```{r, warning=FALSE}
+plot_ly(data, x = data$Altura_LE, color = data$Classe, type = "box") %>% 
+  layout(title = "Boxplot da Altura - LE com relação a classe das notas")
+```
+## Altura - Lado Direito
+
+```{r, warning=FALSE}
+plot_ly(data, x = data$Altura_LD, color = data$Classe, type = "box") %>% 
+  layout(title = "Boxplot da Altura - LD com relação a classe das notas")
+```
+
+## Comprimento Inferior 
+
+```{r, warning=FALSE}
+plot_ly(data, x = data$Inferior, color = data$Classe, type = "box") %>% 
+  layout(title = "Boxplot do Comprimento da borda inferior com relação a classe das notas")
+```
+
+## Comprimento Superior
+
+```{r, warning=FALSE}
+plot_ly(data, x = data$Superior, color = data$Classe, type = "box") %>% 
+  layout(title = "Boxplot do Comprimento da borda superior com relação a classe das notas")
+```
+
+## Comprimento da Diagonal 
+
+
+```{r, warning=FALSE}
+plot_ly(data, x = data$Diagonal, color = data$Classe, type = "box") %>% 
+  layout(title = "Boxplot do comprimento da diagonal com relação a classe das notas")
+```
+
+:::
+
+
+:::{.callout-warning}
+## Conclusão da visualização Gráfica
+
+Podemos observar através da análise gráfica que existe de fato uma diferença visível nas variáveis com a diferença das classes de acordo com as *features*, o que pode possibilitar em uma boa assertividade do modelo de análise de Discriminante, tanto linear como quadrática. 
+:::
+
+- Verificando a matriz de correlação, para plotar o gráfico de dispersão das duas variáveis *preditoras* com a maior correlação. 
+
+```{r}
+M <- data %>% 
+  dplyr::select(-Classe) 
+corrplot(cor(M),method = "number")
+```
+
+Podemos observar que a maior correlação entre as variáveis preditoras, é da *Altura do lado esquerdo* com a *Altura do lado direito*, ou seja, as duas variáveis do comprimento da nota. 
+
+Então, plotando o gráfico, é observado. 
+
+```{r, warning=FALSE, message=FALSE}
+plot_ly(data, x = data$Altura_LD, y = data$Altura_LE, color = data$Classe, text = paste("Altura - LD:", data$Altura_LD, "\nAltura - LE:", data$Altura_LE, "\nClasse:", data$Classe)) %>% 
+  layout(title = "Gráfico de Dispersão entre a Altura do Lado Direito \ne Lado Esquerdo com Relação a Classe", xaxis = list(title = "Altura - Lado Direito"), yaxis = list(title = "Altura - Lado Esquerdo"))
+```
+## Utilização do Análise Discriminante 
+
+### Análise Discriminante Linear 
+
+Para a realização do método de classificação de Análise Discriminante, vamos utilizar a biblioteca `MASS`, e para o Método Linear, utilizaremos a função `lda`. 
+
+
+```{r}
+fit_linear <- lda(Classe ~ ., data = data)
+
+fit_linear
+```
+
+:::{.callout-important}
+
+## Alguns resultados 
+
+Podemos analisar que de fato, existe uma diferença na média dos grupos, podendo assim ter noção de que o modelo será bem assertivo no momento de categorizar as novas **instâncias.**
+:::
+
+- Segue a matriz de confusão com os valores preditos e os valores verdadeiros.
+
+```{r}
+preditos_linear <- predict(fit_linear)$class
+
+kable(table(preditos_linear, data$Classe))
+```
+**Comentário:** Observando a matriz confusão acima, ele errou apenas uma observação, onde não foi bem categorizado, pois, sendo verdadeiro ele categorizou como falso. 
+
+### Análise Discriminante Quadrática 
+
+- Para a análise de discriminante quadrática será utilizado a função `qda` do mesmo pacote `MASS`. 
+
+```{r}
+fit_quadratico <- qda(Classe~., data = data)
+
+fit_quadratico
+```
+
+:::{.callout-important}
+
+## Alguns resultados
+
+Segue-se o mesmo do que já foi visualizado na análise de discriminante linear, as médias das variáveis dos grupos são bem separadinhas, exceto da variável *Comprimento*, onde podemos observar uma maior proximidade entre a média dos dois grupos. 
+:::
+
+- Segue a matriz de confusão com os valores preditos utilizando a análise discriminante quadrática, temos os seguintes resultados. 
+
+```{r}
+preditos_quadratica <- predict(fit_quadratico)$class
+
+kable(table(preditos_quadratica, data$Classe))
+```
+
+**Comentário:** Podemos observar que o mesmo resultado da análise linear foi encontrado na utilização do modelo de análise quadrática, onde apenas uma observação foi catgorizada de maneira errada. 
+
+## Conclusão Final 
+
+:::{.callout-tip}
+
+## Conclusão 
+
+Segue que nos dados o qual foi aplicado os métodos de análise discriminante, houve bons resultados, pois os dados possibilitaram isso, sendo bem homogêneo dentro do grupo, de acordo com as variáveis preditoras, e bem heterogêneo entre os grupos de acordo com as variáveis preditoras. 
+
+Sendo assim, neste caso pode-se ser utilizado para a classificação tanto A LDA, bem como a QDA. 
+:::
+
